@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Trophy, Diamond, Crown } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -8,6 +8,39 @@ const DetailedSalesDashboard = () => {
   const [chartData, setChartData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const calculateRank = (marginGrowth) => {
+    if (marginGrowth > 4) return 'diamond';
+    if (marginGrowth > 3) return 'gold';
+    if (marginGrowth > 2) return 'silver';
+    return 'none';
+  };
+
+  const processExcelData = useCallback((rawData) => {
+    return rawData.map(row => ({
+      name: row.Group || row.Группа,
+      manager: row.Manager || row.Менеджер,
+      revenue: parseFloat(row.Revenue || row.Оборот || 0),
+      prevRevenue: parseFloat(row.PrevRevenue || row.ПредыдущийОборот || 0),
+      cleanMargin: parseFloat(row.CleanMargin || row.ОчищеннаяМаржа || 0),
+      marginGrowth: parseFloat(row.MarginGrowth || row.ПриростМаржи || 0),
+      drr: parseFloat(row.DRR || row.ДРР || 0),
+      weeklyRevenue: [],
+      rank: calculateRank(parseFloat(row.MarginGrowth || row.ПриростМаржи || 0)),
+      color: row.Color || '#8884d8'
+    }));
+  }, []);
+
+  const prepareChartData = useCallback((groups) => {
+    const weeks = Array.from({length: 10}, (_, i) => `Week ${i + 1}`);
+    return weeks.map(week => {
+      const dataPoint = { week };
+      groups.forEach(group => {
+        dataPoint[group.name] = group.weeklyRevenue[week] || 0;
+      });
+      return dataPoint;
+    });
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,8 +65,8 @@ const DetailedSalesDashboard = () => {
         const processedData = processExcelData(jsonData);
         setGroupData(processedData);
         
-        const chartData = prepareChartData(processedData);
-        setChartData(chartData);
+        const newChartData = prepareChartData(processedData);
+        setChartData(newChartData);
         
         setIsLoading(false);
       } catch (error) {
@@ -52,88 +85,7 @@ const DetailedSalesDashboard = () => {
     };
 
     fetchData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setIsLoading(true);
-      console.log('Начинаем загрузку файла...');
-      
-      const response = await fetch('/sales_data.xlsx');
-      const arrayBuffer = await response.arrayBuffer();
-      const data = new Uint8Array(arrayBuffer);
-      
-      console.log('Файл загружен, размер данных:', data.length);
-      
-      const workbook = XLSX.read(data, {
-        type: 'array',
-        cellDates: true,
-        cellStyles: true,
-        cellNF: true
-      });
-      
-      console.log('Excel файл успешно прочитан, листы:', workbook.SheetNames);
-      
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-      
-      // Обработка данных из Excel
-      const processedData = processExcelData(jsonData);
-      setGroupData(processedData);
-      
-      // Подготовка данных для графика
-      const chartData = prepareChartData(processedData);
-      setChartData(chartData);
-      
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Детали ошибки:', error);
-      let errorMessage = 'Ошибка при загрузке данных';
-      
-      if (error.message.includes('404')) {
-        errorMessage = 'Файл sales_data.xlsx не найден в папке public';
-      } else if (error.message.includes('Failed to parse')) {
-        errorMessage = 'Ошибка при парсинге Excel файла. Проверьте формат файла';
-      }
-      
-      setError(errorMessage);
-      setIsLoading(false);
-    }
-  };
-
-  const processExcelData = (rawData) => {
-    return rawData.map(row => ({
-      name: row.Group || row.Группа,
-      manager: row.Manager || row.Менеджер,
-      revenue: parseFloat(row.Revenue || row.Оборот || 0),
-      prevRevenue: parseFloat(row.PrevRevenue || row.ПредыдущийОборот || 0),
-      cleanMargin: parseFloat(row.CleanMargin || row.ОчищеннаяМаржа || 0),
-      marginGrowth: parseFloat(row.MarginGrowth || row.ПриростМаржи || 0),
-      drr: parseFloat(row.DRR || row.ДРР || 0),
-      weeklyRevenue: [],
-      rank: calculateRank(parseFloat(row.MarginGrowth || row.ПриростМаржи || 0)),
-      color: row.Color || '#8884d8'
-    }));
-  };
-
-  const calculateRank = (marginGrowth) => {
-    if (marginGrowth > 4) return 'diamond';
-    if (marginGrowth > 3) return 'gold';
-    if (marginGrowth > 2) return 'silver';
-    return 'none';
-  };
-
-  const prepareChartData = (groups) => {
-    const weeks = Array.from({length: 10}, (_, i) => `Week ${i + 1}`);
-    return weeks.map(week => {
-      const dataPoint = { week };
-      groups.forEach(group => {
-        dataPoint[group.name] = group.weeklyRevenue[week] || 0;
-      });
-      return dataPoint;
-    });
-  };
+  }, [processExcelData, prepareChartData]);
 
   const getRankIcon = (rank) => {
     switch (rank) {
