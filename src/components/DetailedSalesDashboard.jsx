@@ -10,7 +10,48 @@ const DetailedSalesDashboard = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadData();
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        console.log('Начинаем загрузку файла...');
+        const response = await fetch('/sales_data.xlsx');
+        const arrayBuffer = await response.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+        
+        const workbook = XLSX.read(data, {
+          type: 'array',
+          cellDates: true,
+          cellStyles: true,
+          cellNF: true
+        });
+        
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        const processedData = processExcelData(jsonData);
+        setGroupData(processedData);
+        
+        const chartData = prepareChartData(processedData);
+        setChartData(chartData);
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Детали ошибки:', error);
+        let errorMessage = 'Ошибка при загрузке данных';
+        
+        if (error.message.includes('404')) {
+          errorMessage = 'Файл sales_data.xlsx не найден в папке public';
+        } else if (error.message.includes('Failed to parse')) {
+          errorMessage = 'Ошибка при парсинге Excel файла. Проверьте формат файла';
+        }
+        
+        setError(errorMessage);
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const loadData = async () => {
