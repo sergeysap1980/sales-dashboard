@@ -40,11 +40,12 @@ const DetailedSalesDashboard = () => {
     };
   }
 
-  // Генерация списка недель для селекта
-  const weeks = Array.from({ length: 52 }, (_, i) => i + 1).map(weekNum => ({
-    value: weekNum,
-    label: `Неделя ${weekNum} (${getWeekDates(weekNum).start} - ${getWeekDates(weekNum).end})`
-  }));
+// Генерация списка недель для селекта (только до текущей недели)
+const currentWeek = getCurrentWeek();
+const weeks = Array.from({ length: currentWeek }, (_, i) => i + 1).map(weekNum => ({
+  value: weekNum,
+  label: `Неделя ${weekNum} (${getWeekDates(weekNum).start} - ${getWeekDates(weekNum).end})`
+}));
 
   const calculateRank = (marginGrowth) => {
     if (marginGrowth > 4) return 'diamond';
